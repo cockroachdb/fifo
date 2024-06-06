@@ -32,13 +32,16 @@ type Queue[T any] struct {
 	len        int
 	head, tail *queueNode[T]
 
-	pool *queueBackingPool[T]
+	pool *QueueBackingPool[T]
 }
 
 // MakeQueue constructs a new Queue.
-func MakeQueue[T any]() Queue[T] {
+//
+// The pool should be a singleton object initialized with MakeQueueBackingPool.
+// A single pool can and should be used by all queues of that type.
+func MakeQueue[T any](pool *QueueBackingPool[T]) Queue[T] {
 	return Queue[T]{
-		pool: getQueueBackingPool[T](),
+		pool: pool,
 	}
 }
 
@@ -91,35 +94,30 @@ func (q *Queue[T]) PopFront() {
 	q.len--
 }
 
-// queueBackingPool is a sync.Pool that used to allocate internal nodes
+// QueueBackingPool is a sync.Pool that used to allocate internal nodes
 // for Queue[T].
-type queueBackingPool[T any] sync.Pool
+type QueueBackingPool[T any] struct {
+	pool sync.Pool
+}
 
-func newQueueBackingPool[T any]() *queueBackingPool[T] {
-	return &queueBackingPool[T]{
-		New: func() interface{} { return &queueNode[T]{} },
+// MakeQueueBackingPool makes a queue backing pool. It is intented to be used to
+// initialize a singleton (global) variable. A single pool can and should be
+// used by all queues of that type.
+func MakeQueueBackingPool[T any]() QueueBackingPool[T] {
+	return QueueBackingPool[T]{
+		pool: sync.Pool{
+			New: func() interface{} { return &queueNode[T]{} },
+		},
 	}
 }
 
-func (qp *queueBackingPool[T]) get() *queueNode[T] {
-	return (*sync.Pool)(qp).Get().(*queueNode[T])
+func (qp *QueueBackingPool[T]) get() *queueNode[T] {
+	return qp.pool.Get().(*queueNode[T])
 }
 
-func (qp *queueBackingPool[T]) put(n *queueNode[T]) {
+func (qp *QueueBackingPool[T]) put(n *queueNode[T]) {
 	*n = queueNode[T]{}
-	(*sync.Pool)(qp).Put(n)
-}
-
-// queueBackingPools stores singleton queue backing pools, keyed by a nil pointer of the
-// respective type.
-var queueBackingPools sync.Map
-
-func getQueueBackingPool[T any]() *queueBackingPool[T] {
-	p, ok := queueBackingPools.Load((*T)(nil))
-	if !ok {
-		p, _ = queueBackingPools.LoadOrStore((*T)(nil), newQueueBackingPool[T]())
-	}
-	return p.(*queueBackingPool[T])
+	qp.pool.Put(n)
 }
 
 // We batch the allocation of this many queue objects. The value was chosen

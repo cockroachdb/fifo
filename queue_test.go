@@ -21,8 +21,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+var pool = MakeQueueBackingPool[int]()
+
 func TestQueue(t *testing.T) {
-	q := MakeQueue[int]()
+	q := MakeQueue[int](&pool)
 	require.Nil(t, q.PeekFront())
 	require.Equal(t, 0, q.Len())
 	q.PushBack(1)
@@ -49,7 +51,7 @@ func TestQueue(t *testing.T) {
 }
 
 func TestQueueRand(t *testing.T) {
-	q := MakeQueue[int]()
+	q := MakeQueue[int](&pool)
 	l, r := 0, 0
 	for iteration := 0; iteration < 100; iteration++ {
 		for n := rand.Intn(100); n > 0; n-- {

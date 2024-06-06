@@ -56,9 +56,11 @@ func NewSemaphore(capacity int64) *Semaphore {
 	}
 	s := &Semaphore{}
 	s.mu.capacity = capacity
-	s.mu.waiters = MakeQueue[semaWaiter]()
+	s.mu.waiters = MakeQueue[semaWaiter](&semaQueuePool)
 	return s
 }
+
+var semaQueuePool = MakeQueueBackingPool[semaWaiter]()
 
 var ErrRequestExceedsCapacity = errors.New("request exceeds semaphore capacity")
 
