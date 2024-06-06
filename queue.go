@@ -19,6 +19,10 @@ import "sync"
 // Queue implements an allocation efficient FIFO queue. It is not safe for
 // concurrent access.
 //
+// Note that the queue provides pointer access to the internal storage (via
+// PeekFront and PushBack) so it must be used with care. These pointers must not
+// be used once the respective element is popped out of the queue.
+//
 // -- Implementation --
 //
 // The queue is implemented as a linked list of nodes, where each node is a
@@ -44,6 +48,7 @@ func (q *Queue[T]) Len() int {
 }
 
 // PushBack adds t to the end of the queue.
+//
 // The returned pointer can be used to modify the element while it is in the
 // queue; it is valid until the element is removed from the queue.
 func (q *Queue[T]) PushBack(t T) *T {
@@ -117,7 +122,9 @@ func getQueueBackingPool[T any]() *queueBackingPool[T] {
 	return p.(*queueBackingPool[T])
 }
 
-// We batch the allocation of this many queue objects.
+// We batch the allocation of this many queue objects. The value was chosen
+// without experimentation - it provides a reasonable amount of amortization
+// without a very large increase in memory overhead if T is large.
 const queueNodeSize = 8
 
 type queueNode[T any] struct {
@@ -145,9 +152,8 @@ func (qn *queueNode[T]) PeekFront() *T {
 }
 
 func (qn *queueNode[T]) PopFront() T {
-	// NB: the notifyQueue never contains an empty ringBuf.
 	if invariants && qn.len == 0 {
-		panic("cannot dequeue from an empty buffer")
+		panic("cannot pop from empty queue")
 	}
 	t := qn.buf[qn.head]
 	var zero T
